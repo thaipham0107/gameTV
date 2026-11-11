@@ -8,7 +8,9 @@ const PASS_RATIO = 0.7; // đạt khi đúng từ 70% trở lên
 const REVIEW_MS = 2600; // câu đúng: giữ kết quả trên màn hình trước khi qua câu mới
 const HIT_DAMAGE = 100 / STAGE_SIZE;
 const DEFEAT_HP = 100 - 7 * HIT_DAMAGE; // đúng ≥7/10 câu thì hạ gục quái
-const MAX_SPEAK_TRIES = 2;
+const SKIP_AFTER_TRIES = 3; // đọc sai bấy nhiêu lần thì mới hiện nút Bỏ qua
+let micStarts = 0; // số lần bấm nói trong phiên (dùng để đoán popup xin quyền lặp lại)
+let inAppHelp = false;
 
 const app = document.getElementById('app');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -65,8 +67,20 @@ const SCOPES = [
   ['all', '🌟 Tất cả'],
 ];
 
+function bindCopy(root) {
+  const copy = root.querySelector('#copylink');
+  if (copy)
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        copy.textContent = 'Đã sao chép ✓';
+      } catch {
+        prompt('Sao chép liên kết rồi dán vào trình duyệt:', location.href);
+      }
+    };
+}
+
 function inAppNotice() {
-  if (!hasSpeechRecognition || !inAppBrowser()) return '';
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const rest = `${location.host}${location.pathname}${location.search}`;
   const chromeLink = ios
@@ -80,8 +94,8 @@ function inAppNotice() {
     <p>Trình duyệt trong ứng dụng thường hỏi quyền micro lại mỗi lần nói và hay không nhận được giọng. Hãy mở bằng trình duyệt riêng để luyện nói mượt hơn, hoặc chọn “Chỉ chọn chính tả”.</p>
     <p>${how}</p>
     <div class="actions">
-      ${ios ? '' : `<a class="btn" href="${esc(chromeLink)}">Thử mở bằng Chrome</a>`}
-      <button class="btn ${ios ? '' : 'ghost'}" id="copylink">Sao chép liên kết</button>
+      <a class="btn" href="${esc(chromeLink)}">Mở bằng Chrome</a>
+      <button class="btn ghost" id="copylink">Sao chép liên kết</button>
     </div>
   </div>`;
 }
@@ -102,7 +116,6 @@ function renderHome() {
       <p>Nói đúng, chọn đúng chính tả để đấm, đá hạ gục quái vật!</p>
     </header>
 
-    ${inAppNotice()}
 
     <section class="card">
       <h2>1. Nội dung</h2>
@@ -194,16 +207,6 @@ function renderHome() {
     save();
     renderHome();
   };
-  const copy = app.querySelector('#copylink');
-  if (copy)
-    copy.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(location.href);
-        copy.textContent = 'Đã sao chép ✓';
-      } catch {
-        prompt('Sao chép liên kết rồi dán vào Chrome:', location.href);
-      }
-    };
 }
 
 // ---------- Ván chơi ----------
@@ -429,8 +432,10 @@ function renderSpeak(panel, q) {
     <div class="actions">
       <button class="btn big" id="mic">🎤 Bấm để nói</button>
       ${q.prompt ? '' : '<button class="btn ghost" id="hear">🔊 Nghe mẫu</button>'}
-      <button class="btn ghost" id="skip">Bỏ qua</button>
-    </div>`;
+      <button class="btn ghost" id="skip" hidden>Bỏ qua</button>
+    </div>
+    <div id="inapp">${inAppHelp ? inAppNotice() : ''}</div>`;
+  bindCopy(panel);
   const mic = $('mic');
   let listening = false;
 
@@ -441,6 +446,12 @@ function renderSpeak(panel, q) {
     if (listening) return G.rec?.stop();
     window.speechSynthesis?.cancel();
     listening = true;
+    // Trình duyệt trong Messenger/Facebook… hỏi quyền micro lặp lại: từ lần nói thứ 2 mới nhắc cách chuyển trình duyệt
+    if (++micStarts >= 2 && !inAppHelp && inAppBrowser()) {
+      inAppHelp = true;
+      $('inapp').innerHTML = inAppNotice();
+      bindCopy($('inapp'));
+    }
     const denied = await primeMic();
     if (denied) {
       listening = false;
@@ -474,9 +485,9 @@ function renderSpeak(panel, q) {
           .join(' ');
         if (r.ok) return resolve(true);
         G.tries++;
-        if (G.tries >= MAX_SPEAK_TRIES) return resolve(false, q.text);
+        if (G.tries >= SKIP_AFTER_TRIES) $('skip').hidden = false;
         $('fb').className = 'fb warn';
-        $('fb').textContent = 'Gần đúng rồi! Các từ màu đỏ cần đọc lại, thử thêm lần nữa nhé.';
+        $('fb').textContent = 'Chưa đúng, các từ màu đỏ cần đọc lại. Thử thêm lần nữa nhé!';
       },
     });
   };

@@ -278,3 +278,4 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 a.btn { display: inline-block; text-decoration: none; }
 .phrase.dia { color: var(--accent); }
 .opt.wide { font-size: 17px; max-width: 100%; text-align: left; line-height: 1.35; }
+[hidden] { display: none !important; }
