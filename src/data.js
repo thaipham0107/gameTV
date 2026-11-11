@@ -1,9 +1,12 @@
-// Dữ liệu câu hỏi. Độ khó (tier) 1 → 5:
-//   1 = từ 2 tiếng · 2 = cụm 3-4 tiếng · 3 = câu ngắn · 4 = câu dài · 5 = đoạn 2 câu
+import { FIND } from './find-data.js';
+import { SPEAK6, BLANK6 } from './tier6.js';
+
+// Dữ liệu câu hỏi. Độ khó (tier) 1 → 6:
+//   1 = từ 2 tiếng · 2 = cụm 3-4 tiếng · 3 = câu ngắn · 4 = câu dài · 5 = đoạn 2 câu · 6 = đoạn 3 câu
 // Quy ước:
 //   SPEAK : câu cần đọc to
 //   BLANK : "...[đúng|sai|sai]..." chọn từ đúng điền vào chỗ trống (đáp án đứng ĐẦU)
-//   FIND  : "...{từ sai|từ đúng}..." bấm vào từ viết sai
+//   FIND  : "...{từ sai|từ đúng}..." bấm vào TẤT CẢ các từ viết sai (có thể nhiều từ, xem find-data.js)
 
 export const SOUND_GROUPS = [
   { id: 'ln', label: 'l / n' },
@@ -13,20 +16,25 @@ export const SOUND_GROUPS = [
   { id: 'dau', label: 'hỏi / ngã' },
 ];
 
+// Mỗi cấp nhiều hơn cấp trước 10 câu (cấp 1 = 20 câu); câu càng về sau càng khó và dài.
+// Mở khoá: đạt cấp n thì mở cấp n+1; cấp cuối cần đúng 100% cấp liền trước (unlock: 'perfect').
 export const LEVELS = [
-  { name: 'Cấp 1 · Tập nói', icon: '🌱', desc: 'Từ 2 tiếng → cụm từ ngắn', ramp: [1, 2] },
-  { name: 'Cấp 2 · Chăm chỉ', icon: '🌿', desc: 'Từ ghép → câu ngắn', ramp: [1, 3] },
-  { name: 'Cấp 3 · Giỏi giang', icon: '🌳', desc: 'Cụm từ → câu dài', ramp: [2, 4] },
-  { name: 'Cấp 4 · Siêu đẳng', icon: '🔥', desc: 'Câu ngắn → đoạn văn', ramp: [3, 5] },
-  { name: 'Cấp 5 · Huyền thoại', icon: '👑', desc: 'Câu dài → đoạn văn dài', ramp: [4, 5] },
+  { name: 'Cấp 1 · Tập nói', icon: '🌱', desc: 'Từ 2 tiếng → cụm từ ngắn', ramp: [1, 2], count: 20 },
+  { name: 'Cấp 2 · Chăm chỉ', icon: '🌿', desc: 'Từ ghép → câu ngắn', ramp: [1, 3], count: 30 },
+  { name: 'Cấp 3 · Giỏi giang', icon: '🌳', desc: 'Cụm từ → câu dài', ramp: [2, 4], count: 40 },
+  { name: 'Cấp 4 · Siêu đẳng', icon: '🔥', desc: 'Câu ngắn → đoạn văn', ramp: [3, 5], count: 50 },
+  { name: 'Cấp 5 · Huyền thoại', icon: '👑', desc: 'Câu dài → đoạn văn dài', ramp: [4, 6], count: 60 },
+  { name: 'Cấp 6 · Thần thoại', icon: '🐉', desc: 'Toàn đoạn văn dài, nhiều lỗi', ramp: [5, 6], count: 70, unlock: 'perfect' },
 ];
 
+// Mỗi 10 câu gặp một quái vật: cấp n có count/10 quái vật.
 export const MONSTERS = [
-  [['🐛', 'Sâu Líu Lưỡi'], ['🐸', 'Ếch Ồm Ồm'], ['🐢', 'Rùa Chậm Chữ']],
+  [['🐛', 'Sâu Líu Lưỡi'], ['🐸', 'Ếch Ồm Ồm']],
   [['👻', 'Ma Lắp Bắp'], ['🦇', 'Dơi Nói Ngọng'], ['🕷️', 'Nhện Giăng Lỗi']],
-  [['🦂', 'Bọ Cạp Sai Dấu'], ['🐊', 'Cá Sấu Sai Chữ'], ['🦖', 'Khủng Long Lẫn Lộn']],
-  [['👹', 'Quỷ Lộn Âm'], ['🧌', 'Troll Chính Tả'], ['🐲', 'Rồng Ngọng']],
-  [['👽', 'Quái Vũ Trụ'], ['🤖', 'Robot Soát Lỗi'], ['🐉', 'Đại Ma Vương Ngọng']],
+  [['🦂', 'Bọ Cạp Sai Dấu'], ['🐊', 'Cá Sấu Sai Chữ'], ['🦈', 'Cá Mập Lẫn Âm'], ['🦖', 'Khủng Long Lẫn Lộn']],
+  [['👹', 'Quỷ Lộn Âm'], ['🧌', 'Troll Chính Tả'], ['🧟', 'Thây Ma Lắp Bắp'], ['🦍', 'Khỉ Đột Ngọng'], ['🐲', 'Rồng Ngọng']],
+  [['👽', 'Quái Vũ Trụ'], ['🤖', 'Robot Soát Lỗi'], ['🐙', 'Bạch Tuộc Líu Lưỡi'], ['🦑', 'Mực Khổng Lồ'], ['🧛', 'Ma Cà Rồng Sai Dấu'], ['🐉', 'Đại Ma Vương Ngọng']],
+  [['💀', 'Bộ Xương Sai Chữ'], ['🧙', 'Phù Thủy Lẫn Âm'], ['🦹', 'Siêu Ác Nhân'], ['🐺', 'Sói Ngọng'], ['🦕', 'Rồng Cổ Đại'], ['😈', 'Quỷ Vương'], ['☠️', 'Chúa Tể Ngọng']],
 ];
 
 const SPEAK = {
@@ -195,38 +203,10 @@ const BLANK = {
   },
 };
 
-const FIND = {
-  ln: {
-    2: ['Bé uống {lước|nước} lạnh'],
-    3: ['Bà nội {lấu|nấu} cơm rất ngon'],
-    4: ['Mùa lũ, {lước|nước} sông dâng cao khiến cả xóm lo lắng'],
-    5: ['Sáng nay Nam đi làm nương cùng nội. Nắng lên {lóng|nóng} nực nhưng Nam vẫn nở nụ cười.'],
-  },
-  sx: {
-    2: ['Bé {sem|xem} phim'],
-    3: ['Chị {sếp|xếp} quần áo vào tủ'],
-    4: ['Sáng sớm, {xương|sương} giăng trắng xóa cả cánh đồng làng'],
-    5: ['Mùa xuân đến, cây {soan|xoan} nở tím cả sân. Chim sẻ sà xuống hót vang.'],
-  },
-  chtr: {
-    2: ['Con {châu|trâu} ăn cỏ'],
-    3: ['Chú Trung {chèo|trèo} cây chuối'],
-    4: ['Trời {truyển|chuyển} lạnh nên mẹ nhắc bé mặc thêm áo ấm'],
-    5: ['Chiều nay {chời|trời} chuyển mưa. Trang chạy vội về nhà vì sợ ướt cặp sách.'],
-  },
-  rdgi: {
-    2: ['Bé {dúp|giúp} mẹ quét nhà'],
-    3: ['Dì Dung {rieo|gieo} rau ngoài ruộng'],
-    4: ['Cả nhà {dủ|rủ} nhau ra đồng gặt lúa trước khi trời mưa'],
-    5: ['Giờ ra chơi, Giang rủ Duy ra sân đá cầu. Gió reo {dì|rì} rào, tiếng cười giòn tan.'],
-  },
-  dau: {
-    2: ['Bé {nghĩ|nghỉ} ngơi'],
-    3: ['Bé {vẻ|vẽ} một bức tranh thật đẹp'],
-    4: ['Mẹ {sữa|sửa} lại cổ áo cho bé trước khi đến lớp'],
-    5: ['Hè về, bé về quê nghỉ ngơi. Bà {kễ|kể} chuyện cổ tích cho bé nghe.'],
-  },
-};
+for (const g of Object.keys(SPEAK6)) {
+  SPEAK[g][6] = SPEAK6[g];
+  BLANK[g][6] = BLANK6[g];
+}
 
 // ---- Chuyển dữ liệu thô thành danh sách câu hỏi phẳng ----
 
@@ -247,10 +227,9 @@ function parseFind(src) {
     if (!m) return { text: raw };
     return { text: m[1] + m[2] + m[4], wrong: true, right: m[1] + m[3] + m[4] };
   });
-  const bad = tokens.find((t) => t.wrong);
   return {
     tokens,
-    answer: bad.right,
+    wrongCount: tokens.filter((t) => t.wrong).length,
     full: tokens.map((t) => (t.wrong ? t.right : t.text)).join(' '),
   };
 }
@@ -268,8 +247,6 @@ for (const [group, tiers] of Object.entries(FIND))
     list.forEach((src, k) =>
       ITEMS.push({ id: `f-${group}-${tier}-${k}`, kind: 'find', group, tier: +tier, ...parseFind(src) }));
 
-export const QUESTIONS_PER_MATCH = 30;
-
 const rand = (n) => Math.floor(Math.random() * n);
 export function shuffle(arr) {
   const a = [...arr];
@@ -280,13 +257,13 @@ export function shuffle(arr) {
   return a;
 }
 
-export function tierAt(level, i, count = QUESTIONS_PER_MATCH) {
+export function tierAt(level, i, count = LEVELS[level].count) {
   const [a, b] = LEVELS[level].ramp;
-  return Math.max(1, Math.min(5, Math.round(a + ((b - a) * i) / (count - 1))));
+  return Math.max(1, Math.min(6, Math.round(a + ((b - a) * i) / (count - 1))));
 }
 
 function pick(kind, tier, groups, used) {
-  const order = [tier, tier - 1, tier + 1, tier - 2, tier + 2].filter((t) => t >= 1 && t <= 5);
+  const order = [tier, tier - 1, tier + 1, tier - 2, tier + 2].filter((t) => t >= 1 && t <= 6);
   const match = (it, t, g) => it.kind === kind && it.tier === t && (!g || groups.includes(it.group)) && !used.has(it.id);
   for (const t of order) {
     const c = ITEMS.filter((it) => match(it, t, true));
@@ -301,7 +278,8 @@ function pick(kind, tier, groups, used) {
 }
 
 /** mode: 'both' | 'speak' | 'choose' */
-export function buildQuiz(level, groups, mode, count = QUESTIONS_PER_MATCH) {
+export function buildQuiz(level, groups, mode) {
+  const count = LEVELS[level].count;
   const used = new Set();
   const out = [];
   for (let i = 0; i < count; i++) {

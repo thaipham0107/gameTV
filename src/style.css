@@ -192,6 +192,9 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .fb.good { color: var(--good); }
 .fb.bad { color: var(--bad); }
 .fb.warn { color: var(--warn); }
+.fb .answer { display: inline-block; margin-top: 4px; color: var(--ink); font-size: 1.1em; }
+.level.locked { opacity: 0.55; border-style: dashed; }
+.level.locked:hover { transform: none; border-color: var(--line); }
 
 .gap { display: inline-block; min-width: 70px; border-bottom: 4px solid var(--accent); color: var(--accent); }
 .gap.filled { color: var(--good); border-color: var(--good); }
@@ -219,6 +222,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   border-radius: 10px;
   padding: 2px 8px;
 }
+.tok.sel { border-style: solid; border-color: var(--accent); background: var(--accent); color: #fff; }
 .tok:hover:not(:disabled) { border-color: var(--accent); background: var(--bg); }
 
 .review { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

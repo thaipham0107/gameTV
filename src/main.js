@@ -1,10 +1,11 @@
 import './style.css';
-import { SOUND_GROUPS, LEVELS, MONSTERS, QUESTIONS_PER_MATCH, buildQuiz } from './data.js';
+import { SOUND_GROUPS, LEVELS, MONSTERS, buildQuiz } from './data.js';
 import { hasSpeechRecognition, listen, speakText, judge } from './speech.js';
 import { sfx, sfxState } from './audio.js';
 
 const STAGE_SIZE = 10; // mỗi 10 câu gặp một quái vật mới
 const PASS_RATIO = 0.7; // đạt khi đúng từ 70% trở lên
+const REVIEW_MS = 2600; // câu đúng: giữ kết quả trên màn hình trước khi qua câu mới
 const HIT_DAMAGE = 100 / STAGE_SIZE;
 const DEFEAT_HP = 100 - 7 * HIT_DAMAGE; // đúng ≥7/10 câu thì hạ gục quái
 const MAX_SPEAK_TRIES = 2;
@@ -47,6 +48,14 @@ const MODES = [
   ['choose', '✍️ Chỉ chọn chính tả'],
 ];
 
+// Cấp 1 luôn mở; đạt cấp n (≥70%) thì mở cấp n+1; cấp 'perfect' cần đúng 100% cấp liền trước.
+function isUnlocked(i) {
+  if (i === 0) return true;
+  const prev = best[i - 1];
+  if (!prev) return false;
+  return LEVELS[i].unlock === 'perfect' ? prev.acc >= 1 : true;
+}
+
 const starsText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
 function renderHome() {
@@ -76,13 +85,15 @@ function renderHome() {
     </section>
 
     <section class="card">
-      <h2>3. Chọn cấp độ · ${QUESTIONS_PER_MATCH} câu / ván</h2>
+      <h2>3. Chọn cấp độ · qua cấp để mở khoá cấp tiếp theo</h2>
       <div class="levels">
         ${LEVELS.map((lv, i) => {
           const b = best[i];
-          return `<button class="level" data-l="${i}">
-            <span class="lv-icon">${lv.icon}</span>
-            <span class="lv-body"><strong>${esc(lv.name)}</strong><small>${esc(lv.desc)}</small></span>
+          const open = isUnlocked(i);
+          const need = lv.unlock === 'perfect' ? `Cần đúng ${LEVELS[i - 1].count}/${LEVELS[i - 1].count} câu ở ${LEVELS[i - 1].name.split(' · ')[0]}` : `Qua ${LEVELS[i - 1]?.name.split(' · ')[0]} để mở`;
+          return `<button class="level ${open ? '' : 'locked'}" data-l="${i}" ${open ? '' : 'disabled'}>
+            <span class="lv-icon">${open ? lv.icon : '🔒'}</span>
+            <span class="lv-body"><strong>${esc(lv.name)} · ${lv.count} câu</strong><small>${esc(open ? lv.desc : need)}</small></span>
             <span class="lv-stars ${b ? 'has' : ''}">${starsText(b ? b.stars : 0)}</span>
           </button>`;
         }).join('')}
@@ -91,7 +102,7 @@ function renderHome() {
 
     <footer class="foot">
       <button class="link" id="sfx">${settings.sfx ? '🔊 Âm thanh: bật' : '🔇 Âm thanh: tắt'}</button>
-      <span>Ván đạt khi đúng từ ${PASS_RATIO * 100}% trở lên</span>
+      <span>Đạt khi đúng từ ${PASS_RATIO * 100}% số câu</span>
     </footer>
   </main>`;
 
@@ -113,8 +124,8 @@ function renderHome() {
     renderHome();
   };
   app.querySelector('.levels').onclick = (e) => {
-    const l = e.target.closest('[data-l]')?.dataset.l;
-    if (l !== undefined) startGame(+l);
+    const b = e.target.closest('[data-l]');
+    if (b && !b.disabled) startGame(+b.dataset.l);
   };
   app.querySelector('#sfx').onclick = () => {
     settings.sfx = !settings.sfx;
@@ -131,6 +142,7 @@ let G = null; // trạng thái ván hiện tại
 function startGame(level) {
   G = {
     level,
+    count: LEVELS[level].count,
     quiz: buildQuiz(level, settings.groups, settings.mode),
     i: 0,
     correct: 0,
@@ -150,7 +162,7 @@ function startGame(level) {
       <div class="hud-mid"><strong>${esc(LEVELS[level].name)}</strong><span id="count"></span></div>
       <div class="combo" id="combo"></div>
     </header>
-    <div class="progress" aria-hidden="true"><span id="prog"></span><i style="left:33.33%"></i><i style="left:66.66%"></i></div>
+    <div class="progress" aria-hidden="true"><span id="prog"></span>${Array.from({ length: G.count / STAGE_SIZE - 1 }, (_, k) => `<i style="left:${((k + 1) * STAGE_SIZE * 100) / G.count}%"></i>`).join('')}</div>
     <section class="arena" id="arena">
       <div class="fighter hero" id="hero">🦸</div>
       <div class="mbox" id="mbox">
@@ -180,14 +192,14 @@ function endSession() {
 }
 
 const $ = (id) => document.getElementById(id);
-const stageOf = (i) => Math.min(2, Math.floor(i / STAGE_SIZE));
+const stageOf = (i) => Math.floor(i / STAGE_SIZE);
 
 function spawnMonster(stage) {
   const [emoji, name] = MONSTERS[G.level][stage];
   G.hp = 100;
   G.stageHits = 0;
   $('monster').textContent = emoji;
-  $('mname').textContent = `${name} · màn ${stage + 1}/3`;
+  $('mname').textContent = `${name} · màn ${stage + 1}/${G.count / STAGE_SIZE}`;
   $('hp').style.width = '100%';
   replay($('monster'), 'enter');
 }
@@ -208,8 +220,8 @@ function popText(text, cls = '') {
 }
 
 function updateHud() {
-  $('count').textContent = `Câu ${Math.min(G.i + 1, QUESTIONS_PER_MATCH)}/${QUESTIONS_PER_MATCH}`;
-  $('prog').style.width = `${(G.i / QUESTIONS_PER_MATCH) * 100}%`;
+  $('count').textContent = `Câu ${Math.min(G.i + 1, G.count)}/${G.count}`;
+  $('prog').style.width = `${(G.i / G.count) * 100}%`;
   $('combo').textContent = G.streak >= 2 ? `🔥 x${G.streak}` : '';
 }
 
@@ -276,7 +288,9 @@ async function resolve(ok, answerText) {
     G.correct++;
     G.streak++;
     fb.className = 'fb good';
-    fb.textContent = ['Đúng rồi! 🎉', 'Tuyệt vời! ⭐', 'Giỏi quá! 👏', 'Chuẩn luôn! 💪'][G.i % 4];
+    const praise = ['Đúng rồi! 🎉', 'Tuyệt vời! ⭐', 'Giỏi quá! 👏', 'Chuẩn luôn! 💪'][G.i % 4];
+    // Câu chọn chính tả: hiện lại cả câu viết đúng để bé kịp nhìn.
+    fb.innerHTML = q.kind === 'speak' ? esc(praise) : `${esc(praise)}<br><span class="answer">${esc(answerText)}</span>`;
     updateHud();
     await playerAttack();
   } else {
@@ -287,19 +301,25 @@ async function resolve(ok, answerText) {
     updateHud();
     await monsterAttack();
   }
-  if (ok) await sleep(450);
-  else await waitNext();
+  if (!ok) await waitNext();
+  else if (q.kind === 'speak') await sleep(450);
+  else await waitNext(REVIEW_MS);
   await advance();
 }
 
-function waitNext() {
+// Chờ bấm "Tiếp"; có autoMs thì tự qua câu sau khoảng đó (bấm sớm hơn cũng được).
+function waitNext(autoMs) {
   return new Promise((resolveWait) => {
     const row = document.createElement('div');
     row.className = 'actions';
     row.innerHTML = '<button class="btn big" id="next">Tiếp ▶</button>';
     $('panel').appendChild(row);
     $('next').focus();
-    $('next').onclick = resolveWait;
+    const timer = autoMs && setTimeout(resolveWait, autoMs);
+    $('next').onclick = () => {
+      clearTimeout(timer);
+      resolveWait();
+    };
   });
 }
 
@@ -308,7 +328,7 @@ async function advance() {
   G.i++;
   if (G.i % STAGE_SIZE === 0) await stageEnd();
   if (!G?.alive) return;
-  if (G.i >= QUESTIONS_PER_MATCH) return renderResult();
+  if (G.i >= G.count) return renderResult();
   if (G.i % STAGE_SIZE === 0) spawnMonster(stageOf(G.i));
   showQuestion();
 }
@@ -396,32 +416,54 @@ function renderBlank(panel, q) {
 // ----- Dạng câu hỏi: tìm từ viết sai -----
 
 function renderFind(panel, q) {
+  const n = q.wrongCount;
   panel.innerHTML = `
-    <div class="q-label">🔍 Bấm vào từ viết sai chính tả</div>
+    <div class="q-label">🔍 Bấm chọn ${n === 1 ? '1 từ' : `<strong>${n} từ</strong>`} viết sai chính tả, rồi bấm Kiểm tra</div>
     <div class="sentence find ${q.askTier >= 4 ? 'long' : ''}">${q.tokens
-      .map((t, k) => `<button class="tok" data-k="${k}">${esc(t.text)}</button>`)
+      .map((t, k) => `<button class="tok" data-k="${k}" aria-pressed="false">${esc(t.text)}</button>`)
       .join(' ')}</div>
-    <div class="fb" id="fb"></div>`;
+    <div class="fb" id="fb"></div>
+    <div class="actions"><button class="btn big" id="check" disabled>Kiểm tra ✓</button></div>`;
+  const toks = [...panel.querySelectorAll('.tok')];
+  const picked = () => toks.filter((x) => x.classList.contains('sel'));
+  const check = $('check');
+  const sync = () => {
+    check.disabled = picked().length === 0;
+    $('fb').textContent = `Đã chọn ${picked().length}/${n} từ`;
+  };
+  sync();
   panel.querySelector('.find').onclick = (e) => {
     const b = e.target.closest('.tok');
     if (!b || G.busy) return;
-    const t = q.tokens[+b.dataset.k];
-    panel.querySelectorAll('.tok').forEach((x) => {
+    b.classList.toggle('sel');
+    b.setAttribute('aria-pressed', b.classList.contains('sel'));
+    sync();
+  };
+  check.onclick = () => {
+    if (G.busy || !picked().length) return;
+    let ok = true;
+    toks.forEach((x) => {
+      const t = q.tokens[+x.dataset.k];
+      const sel = x.classList.contains('sel');
       x.disabled = true;
-      if (q.tokens[+x.dataset.k].wrong) {
-        x.classList.add(t.wrong ? 'right' : 'missed');
-        x.textContent = q.tokens[+x.dataset.k].right;
+      if (t.wrong) {
+        x.textContent = t.right;
+        x.classList.add(sel ? 'right' : 'missed');
+        if (!sel) ok = false;
+      } else if (sel) {
+        x.classList.add('wrong');
+        ok = false;
       }
     });
-    if (!t.wrong) b.classList.add('wrong');
-    resolve(!!t.wrong, q.full);
+    check.remove();
+    resolve(ok, q.full);
   };
 }
 
 // ---------- Kết quả ----------
 
 function renderResult() {
-  const total = QUESTIONS_PER_MATCH;
+  const total = G.count;
   const acc = G.correct / total;
   const passed = acc >= PASS_RATIO;
   const stars = acc >= 0.95 ? 3 : acc >= 0.85 ? 2 : passed ? 1 : 0;

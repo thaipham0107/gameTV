@@ -31,7 +31,7 @@ export function alignWords(target, heard) {
 }
 
 // Ngưỡng đúng theo độ khó: câu càng dài càng được du di một chút.
-export const PASS_RATIO = { 1: 1, 2: 0.75, 3: 0.8, 4: 0.8, 5: 0.75 };
+export const PASS_RATIO = { 1: 1, 2: 0.75, 3: 0.8, 4: 0.8, 5: 0.75, 6: 0.75 };
 
 export function judge(target, alternatives, tier) {
   let best = null;
