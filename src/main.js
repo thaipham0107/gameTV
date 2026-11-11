@@ -1,7 +1,7 @@
 import './style.css';
 import { LEVELS, MONSTERS, STAGE_SIZE, PROVINCES, buildQuiz, loadBank } from './data.js';
 import { markSeen, seenCount, resetSeen } from './history.js';
-import { hasSpeechRecognition, inAppBrowser, primeMic, listen, speakText, judge } from './speech.js';
+import { hasSpeechRecognition, primeMic, listen, speakText, judge } from './speech.js';
 import { sfx, sfxState } from './audio.js';
 
 const PASS_RATIO = 0.7; // đạt khi đúng từ 70% trở lên
@@ -9,8 +9,6 @@ const REVIEW_MS = 2600; // câu đúng: giữ kết quả trên màn hình trư�
 const HIT_DAMAGE = 100 / STAGE_SIZE;
 const DEFEAT_HP = 100 - 7 * HIT_DAMAGE; // đúng ≥7/10 câu thì hạ gục quái
 const SKIP_AFTER_TRIES = 3; // đọc sai bấy nhiêu lần thì mới hiện nút Bỏ qua
-let micStarts = 0; // số lần bấm nói trong phiên (dùng để đoán popup xin quyền lặp lại)
-let inAppHelp = false;
 
 const app = document.getElementById('app');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,39 +64,6 @@ const SCOPES = [
   ['v', '🗺️ Vùng miền'],
   ['all', '🌟 Tất cả'],
 ];
-
-function bindCopy(root) {
-  const copy = root.querySelector('#copylink');
-  if (copy)
-    copy.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(location.href);
-        copy.textContent = 'Đã sao chép ✓';
-      } catch {
-        prompt('Sao chép liên kết rồi dán vào trình duyệt:', location.href);
-      }
-    };
-}
-
-function inAppNotice() {
-  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const rest = `${location.host}${location.pathname}${location.search}`;
-  const chromeLink = ios
-    ? `googlechromes://${rest}`
-    : `intent://${rest}#Intent;scheme=https;package=com.android.chrome;end`;
-  const how = ios
-    ? 'Cách chắc chắn nhất: bấm dấu <b>⋯</b> (góc trên bên phải) → chọn <b>“Mở trong trình duyệt”</b> / <b>“Open in Safari”</b>. Hoặc bấm “Sao chép liên kết” rồi dán vào Safari / Chrome.'
-    : 'Nếu nút không mở được: bấm dấu <b>⋮</b> / <b>⋯</b> → <b>“Mở trong trình duyệt”</b>, hoặc sao chép liên kết rồi dán vào Chrome.';
-  return `<div class="card warn-card">
-    <strong>⚠️ Bạn đang mở trong ứng dụng (Messenger, Zalo, Facebook…)</strong>
-    <p>Trình duyệt trong ứng dụng thường hỏi quyền micro lại mỗi lần nói và hay không nhận được giọng. Hãy mở bằng trình duyệt riêng để luyện nói mượt hơn, hoặc chọn “Chỉ chọn chính tả”.</p>
-    <p>${how}</p>
-    <div class="actions">
-      <a class="btn" href="${esc(chromeLink)}">Mở bằng Chrome</a>
-      <button class="btn ghost" id="copylink">Sao chép liên kết</button>
-    </div>
-  </div>`;
-}
 
 const SCOPE_HINT = {
   p: 'Phát âm l/n, s/x, ch/tr, r/d/gi, hỏi/ngã, chính tả, ca dao – tục ngữ.',
@@ -253,8 +218,11 @@ async function startGame(level) {
     <section class="arena" id="arena">
       <div class="fighter hero" id="hero">🦸</div>
       <div class="mbox" id="mbox">
-        <div class="mname" id="mname"></div>
-        <div class="hpbar"><span id="hp"></span></div>
+        <div class="mhud">
+          <div class="mname" id="mname"></div>
+          <div class="mstage" id="mstage"></div>
+          <div class="hpbar"><span id="hp"></span></div>
+        </div>
         <div class="fighter monster" id="monster"></div>
       </div>
       <div class="banner" id="banner"></div>
@@ -286,7 +254,8 @@ function spawnMonster(stage) {
   G.hp = 100;
   G.stageHits = 0;
   $('monster').textContent = emoji;
-  $('mname').textContent = `${name} · màn ${stage + 1}/${Math.ceil(G.count / STAGE_SIZE)}`;
+  $('mname').textContent = name;
+  $('mstage').textContent = `màn ${stage + 1}/${Math.ceil(G.count / STAGE_SIZE)}`;
   $('hp').style.width = '100%';
   replay($('monster'), 'enter');
 }
@@ -433,9 +402,7 @@ function renderSpeak(panel, q) {
       <button class="btn big" id="mic">🎤 Bấm để nói</button>
       ${q.prompt ? '' : '<button class="btn ghost" id="hear">🔊 Nghe mẫu</button>'}
       <button class="btn ghost" id="skip" hidden>Bỏ qua</button>
-    </div>
-    <div id="inapp">${inAppHelp ? inAppNotice() : ''}</div>`;
-  bindCopy(panel);
+    </div>`;
   const mic = $('mic');
   let listening = false;
 
@@ -446,12 +413,6 @@ function renderSpeak(panel, q) {
     if (listening) return G.rec?.stop();
     window.speechSynthesis?.cancel();
     listening = true;
-    // Trình duyệt trong Messenger/Facebook… hỏi quyền micro lặp lại: từ lần nói thứ 2 mới nhắc cách chuyển trình duyệt
-    if (++micStarts >= 2 && !inAppHelp && inAppBrowser()) {
-      inAppHelp = true;
-      $('inapp').innerHTML = inAppNotice();
-      bindCopy($('inapp'));
-    }
     const denied = await primeMic();
     if (denied) {
       listening = false;
