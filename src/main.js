@@ -80,8 +80,8 @@ function inAppNotice() {
     <p>Trình duyệt trong ứng dụng thường hỏi quyền micro lại mỗi lần nói và hay không nhận được giọng. Hãy mở bằng trình duyệt riêng để luyện nói mượt hơn, hoặc chọn “Chỉ chọn chính tả”.</p>
     <p>${how}</p>
     <div class="actions">
-      <a class="btn" href="${esc(chromeLink)}">Thử mở bằng Chrome</a>
-      <button class="btn ghost" id="copylink">Sao chép liên kết</button>
+      ${ios ? '' : `<a class="btn" href="${esc(chromeLink)}">Thử mở bằng Chrome</a>`}
+      <button class="btn ${ios ? '' : 'ghost'}" id="copylink">Sao chép liên kết</button>
     </div>
   </div>`;
 }
