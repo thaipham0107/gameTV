@@ -296,3 +296,4 @@ a.btn { display: inline-block; text-decoration: none; }
   .phrase.long, .sentence.long { font-size: clamp(16px, 4vw, 22px); }
   .arena { height: clamp(120px, 24dvh, 200px); }
 }
+.btn#mic { font-size: 26px; padding: 8px 22px; line-height: 1.2; }

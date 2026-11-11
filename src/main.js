@@ -399,7 +399,7 @@ function renderSpeak(panel, q) {
     <div class="heard" id="heard">&nbsp;</div>
     <div class="fb" id="fb"></div>
     <div class="actions">
-      <button class="btn big" id="mic">🎤 Bấm để nói</button>
+      <button class="btn big" id="mic" aria-label="Bấm để nói" title="Bấm để nói">🎤</button>
       ${q.prompt ? '' : '<button class="btn ghost" id="hear">🔊 Nghe mẫu</button>'}
       <button class="btn ghost" id="skip" hidden>Bỏ qua</button>
     </div>`;
@@ -421,7 +421,8 @@ function renderSpeak(panel, q) {
       return;
     }
     mic.classList.add('rec');
-    mic.textContent = '⏹ Nói xong';
+    mic.textContent = '⏹';
+    mic.setAttribute('aria-label', 'Nói xong');
     $('fb').textContent = '';
     $('heard').textContent = 'Đang nghe…';
     G.rec = listen({
@@ -430,7 +431,8 @@ function renderSpeak(panel, q) {
         listening = false;
         if (!G?.alive || G.busy) return;
         mic.classList.remove('rec');
-        mic.textContent = '🎤 Nói lại';
+        mic.textContent = '🎤';
+        mic.setAttribute('aria-label', 'Nói lại');
         if (error) {
           $('heard').innerHTML = '&nbsp;';
           $('fb').className = 'fb bad';
