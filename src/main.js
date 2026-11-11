@@ -67,12 +67,20 @@ const SCOPES = [
 
 function inAppNotice() {
   if (!hasSpeechRecognition || !inAppBrowser()) return '';
-  const intent = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const rest = `${location.host}${location.pathname}${location.search}`;
+  const chromeLink = ios
+    ? `googlechromes://${rest}`
+    : `intent://${rest}#Intent;scheme=https;package=com.android.chrome;end`;
+  const how = ios
+    ? 'Cách chắc chắn nhất: bấm dấu <b>⋯</b> (góc trên bên phải) → chọn <b>“Mở trong trình duyệt”</b> / <b>“Open in Safari”</b>. Hoặc bấm “Sao chép liên kết” rồi dán vào Safari / Chrome.'
+    : 'Nếu nút không mở được: bấm dấu <b>⋮</b> / <b>⋯</b> → <b>“Mở trong trình duyệt”</b>, hoặc sao chép liên kết rồi dán vào Chrome.';
   return `<div class="card warn-card">
     <strong>⚠️ Bạn đang mở trong ứng dụng (Messenger, Zalo, Facebook…)</strong>
-    <p>Trình duyệt trong ứng dụng thường hỏi quyền micro lại mỗi lần nói và hay không nhận được giọng. Hãy mở bằng Chrome để luyện nói mượt hơn, hoặc chọn “Chỉ chọn chính tả”.</p>
+    <p>Trình duyệt trong ứng dụng thường hỏi quyền micro lại mỗi lần nói và hay không nhận được giọng. Hãy mở bằng trình duyệt riêng để luyện nói mượt hơn, hoặc chọn “Chỉ chọn chính tả”.</p>
+    <p>${how}</p>
     <div class="actions">
-      <a class="btn" href="${esc(intent)}">Mở bằng Chrome</a>
+      <a class="btn" href="${esc(chromeLink)}">Thử mở bằng Chrome</a>
       <button class="btn ghost" id="copylink">Sao chép liên kết</button>
     </div>
   </div>`;
