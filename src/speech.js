@@ -57,9 +57,33 @@ const ERRORS = {
   network: 'Cần có mạng để nhận giọng nói.',
 };
 
+/** Trình duyệt nhúng trong ứng dụng (Messenger, Zalo, Facebook…) hay hỏi quyền micro lại mỗi lần. */
+export function inAppBrowser() {
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|FB_IAB|FBIOS|Messenger|Zalo|Instagram|Line\/|TikTok|MicroMessenger|; wv\)/i.test(ua);
+}
+
+let micChecked = false;
+/** Xin quyền micro đúng một lần trong phiên (getUserMedia) để lần nhận giọng sau không bị hỏi lại. */
+export async function primeMic() {
+  if (micChecked || !navigator.mediaDevices?.getUserMedia) return null;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => t.stop());
+    micChecked = true;
+    return null;
+  } catch (e) {
+    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) return ERRORS['not-allowed'];
+    if (e && e.name === 'NotFoundError') return ERRORS['audio-capture'];
+    return null; // lỗi khác: để nhận giọng tự báo
+  }
+}
+
+let shared = null; // dùng lại một đối tượng nhận giọng cho cả phiên
+
 /** Bắt đầu nghe. Tự dừng sau ~1.6s im lặng. Trả về { stop }. */
 export function listen({ onInterim, onDone }) {
-  const rec = new SR();
+  const rec = (shared ||= new SR());
   rec.lang = 'vi-VN';
   rec.interimResults = true;
   rec.continuous = true;
@@ -101,7 +125,16 @@ export function listen({ onInterim, onDone }) {
     error = ERRORS[e.error] || 'Không nhận được giọng nói, thử lại nhé.';
   };
   rec.onend = finish;
-  rec.start();
+  try {
+    rec.start();
+  } catch {
+    try {
+      rec.abort();
+    } catch {
+      /* bỏ qua */
+    }
+    setTimeout(() => rec.start(), 150);
+  }
   return { stop: () => rec.stop() };
 }
 

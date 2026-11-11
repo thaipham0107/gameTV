@@ -1,9 +1,9 @@
 import './style.css';
-import { SOUND_GROUPS, LEVELS, MONSTERS, buildQuiz } from './data.js';
-import { hasSpeechRecognition, listen, speakText, judge } from './speech.js';
+import { LEVELS, MONSTERS, STAGE_SIZE, PROVINCES, buildQuiz, loadBank } from './data.js';
+import { markSeen, seenCount, resetSeen } from './history.js';
+import { hasSpeechRecognition, inAppBrowser, primeMic, listen, speakText, judge } from './speech.js';
 import { sfx, sfxState } from './audio.js';
 
-const STAGE_SIZE = 10; // mỗi 10 câu gặp một quái vật mới
 const PASS_RATIO = 0.7; // đạt khi đúng từ 70% trở lên
 const REVIEW_MS = 2600; // câu đúng: giữ kết quả trên màn hình trước khi qua câu mới
 const HIT_DAMAGE = 100 / STAGE_SIZE;
@@ -26,7 +26,8 @@ function load() {
 }
 const saved = load();
 const settings = {
-  groups: saved.groups?.length ? saved.groups : SOUND_GROUPS.map((g) => g.id),
+  scope: ['p', 'v', 'all'].includes(saved.scope) ? saved.scope : 'p',
+  province: saved.province || 'all',
   mode: hasSpeechRecognition ? saved.mode || 'both' : 'choose',
   sfx: saved.sfx !== false,
 };
@@ -58,8 +59,33 @@ function isUnlocked(i) {
 
 const starsText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
+const SCOPES = [
+  ['p', '📚 Phổ thông'],
+  ['v', '🗺️ Vùng miền'],
+  ['all', '🌟 Tất cả'],
+];
+
+function inAppNotice() {
+  if (!hasSpeechRecognition || !inAppBrowser()) return '';
+  const intent = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
+  return `<div class="card warn-card">
+    <strong>⚠️ Bạn đang mở trong ứng dụng (Messenger, Zalo, Facebook…)</strong>
+    <p>Trình duyệt trong ứng dụng thường hỏi quyền micro lại mỗi lần nói và hay không nhận được giọng. Hãy mở bằng Chrome để luyện nói mượt hơn, hoặc chọn “Chỉ chọn chính tả”.</p>
+    <div class="actions">
+      <a class="btn" href="${esc(intent)}">Mở bằng Chrome</a>
+      <button class="btn ghost" id="copylink">Sao chép liên kết</button>
+    </div>
+  </div>`;
+}
+
+const SCOPE_HINT = {
+  p: 'Phát âm l/n, s/x, ch/tr, r/d/gi, hỏi/ngã, chính tả, ca dao – tục ngữ.',
+  v: 'Từ ngữ và câu nói của các vùng miền, đổi sang tiếng phổ thông.',
+  all: 'Trộn cả nội dung phổ thông và vùng miền.',
+};
+
 function renderHome() {
-  const allOn = settings.groups.length === SOUND_GROUPS.length;
+  const provinceChips = PROVINCES.map((p) => `<button class="chip ${settings.province === p.id ? 'on' : ''}" data-p="${p.id}">${esc(p.name)}</button>`).join('');
   app.innerHTML = `
   <main class="home">
     <header class="title">
@@ -68,12 +94,20 @@ function renderHome() {
       <p>Nói đúng, chọn đúng chính tả để đấm, đá hạ gục quái vật!</p>
     </header>
 
+    ${inAppNotice()}
+
     <section class="card">
-      <h2>1. Âm cần luyện</h2>
-      <div class="chips" id="groups">
-        ${SOUND_GROUPS.map((g) => `<button class="chip ${settings.groups.includes(g.id) ? 'on' : ''}" data-g="${g.id}">${esc(g.label)}</button>`).join('')}
-        <button class="chip all ${allOn ? 'on' : ''}" data-g="all">Tất cả</button>
+      <h2>1. Nội dung</h2>
+      <div class="chips" id="scopes">
+        ${SCOPES.map(([id, label]) => `<button class="chip ${settings.scope === id ? 'on' : ''}" data-s="${id}">${label}</button>`).join('')}
       </div>
+      <p class="hint">${SCOPE_HINT[settings.scope]}</p>
+      ${
+        settings.scope === 'v'
+          ? `<h3>Chọn tỉnh / vùng</h3><div class="chips" id="provinces">
+              <button class="chip all ${settings.province === 'all' ? 'on' : ''}" data-p="all">Tất cả</button>${provinceChips}</div>`
+          : ''
+      }
     </section>
 
     <section class="card">
@@ -102,20 +136,39 @@ function renderHome() {
 
     <footer class="foot">
       <button class="link" id="sfx">${settings.sfx ? '🔊 Âm thanh: bật' : '🔇 Âm thanh: tắt'}</button>
-      <span>Đạt khi đúng từ ${PASS_RATIO * 100}% số câu</span>
+      <span id="bankinfo">Đạt khi đúng từ ${PASS_RATIO * 100}% số câu</span>
+      <button class="link" id="resetseen" hidden>Chơi lại các câu đã gặp</button>
     </footer>
   </main>`;
 
-  app.querySelector('#groups').onclick = (e) => {
-    const g = e.target.closest('[data-g]')?.dataset.g;
-    if (!g) return;
-    if (g === 'all') settings.groups = SOUND_GROUPS.map((x) => x.id);
-    else if (settings.groups.includes(g)) {
-      if (settings.groups.length > 1) settings.groups = settings.groups.filter((x) => x !== g);
-    } else settings.groups = [...settings.groups, g];
+  loadBank().then((bank) => {
+    const info = document.getElementById('bankinfo');
+    if (!info) return;
+    info.textContent = `Kho ${bank.items.length.toLocaleString('vi-VN')} câu hỏi · đã gặp ${seenCount().toLocaleString('vi-VN')} câu gốc`;
+    const reset = document.getElementById('resetseen');
+    if (reset && seenCount() > 0) {
+      reset.hidden = false;
+      reset.onclick = () => {
+        resetSeen();
+        renderHome();
+      };
+    }
+  });
+
+  app.querySelector('#scopes').onclick = (e) => {
+    const sc = e.target.closest('[data-s]')?.dataset.s;
+    if (!sc) return;
+    settings.scope = sc;
     save();
     renderHome();
   };
+  app.querySelector('#provinces')?.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-p]')?.dataset.p;
+    if (!p) return;
+    settings.province = p;
+    save();
+    renderHome();
+  });
   app.querySelector('#modes').onclick = (e) => {
     const m = e.target.closest('[data-m]');
     if (!m || m.disabled) return;
@@ -133,17 +186,40 @@ function renderHome() {
     save();
     renderHome();
   };
+  const copy = app.querySelector('#copylink');
+  if (copy)
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        copy.textContent = 'Đã sao chép ✓';
+      } catch {
+        prompt('Sao chép liên kết rồi dán vào Chrome:', location.href);
+      }
+    };
 }
 
 // ---------- Ván chơi ----------
 
 let G = null; // trạng thái ván hiện tại
 
-function startGame(level) {
+async function startGame(level) {
+  app.innerHTML = '<main class="home"><p class="loading">⏳ Đang chuẩn bị câu hỏi…</p></main>';
+  let quiz;
+  try {
+    quiz = await buildQuiz(level, { scope: settings.scope, province: settings.province, mode: settings.mode });
+  } catch (err) {
+    console.error(err);
+    alert('Không tải được kho câu hỏi. Hãy kiểm tra mạng rồi thử lại.');
+    return renderHome();
+  }
+  if (!quiz.length) {
+    alert('Chưa có câu hỏi phù hợp với lựa chọn này.');
+    return renderHome();
+  }
   G = {
     level,
-    count: LEVELS[level].count,
-    quiz: buildQuiz(level, settings.groups, settings.mode),
+    count: quiz.length,
+    quiz,
     i: 0,
     correct: 0,
     streak: 0,
@@ -162,7 +238,7 @@ function startGame(level) {
       <div class="hud-mid"><strong>${esc(LEVELS[level].name)}</strong><span id="count"></span></div>
       <div class="combo" id="combo"></div>
     </header>
-    <div class="progress" aria-hidden="true"><span id="prog"></span>${Array.from({ length: G.count / STAGE_SIZE - 1 }, (_, k) => `<i style="left:${((k + 1) * STAGE_SIZE * 100) / G.count}%"></i>`).join('')}</div>
+    <div class="progress" aria-hidden="true"><span id="prog"></span>${Array.from({ length: Math.ceil(G.count / STAGE_SIZE) - 1 }, (_, k) => `<i style="left:${((k + 1) * STAGE_SIZE * 100) / G.count}%"></i>`).join('')}</div>
     <section class="arena" id="arena">
       <div class="fighter hero" id="hero">🦸</div>
       <div class="mbox" id="mbox">
@@ -195,11 +271,11 @@ const $ = (id) => document.getElementById(id);
 const stageOf = (i) => Math.floor(i / STAGE_SIZE);
 
 function spawnMonster(stage) {
-  const [emoji, name] = MONSTERS[G.level][stage];
+  const [emoji, name] = MONSTERS[G.level][Math.min(stage, MONSTERS[G.level].length - 1)];
   G.hp = 100;
   G.stageHits = 0;
   $('monster').textContent = emoji;
-  $('mname').textContent = `${name} · màn ${stage + 1}/${G.count / STAGE_SIZE}`;
+  $('mname').textContent = `${name} · màn ${stage + 1}/${Math.ceil(G.count / STAGE_SIZE)}`;
   $('hp').style.width = '100%';
   replay($('monster'), 'enter');
 }
@@ -252,7 +328,7 @@ async function monsterAttack() {
 }
 
 async function stageEnd() {
-  const [, name] = MONSTERS[G.level][stageOf(G.i - 1)];
+  const [, name] = MONSTERS[G.level][Math.min(stageOf(G.i - 1), MONSTERS[G.level].length - 1)];
   const monster = $('monster');
   if (G.hp <= DEFEAT_HP) {
     sfx.win();
@@ -283,6 +359,7 @@ async function resolve(ok, answerText) {
   G.busy = true;
   G.rec?.stop();
   const q = G.quiz[G.i];
+  markSeen(q.g);
   const fb = $('fb');
   if (ok) {
     G.correct++;
@@ -337,25 +414,32 @@ async function advance() {
 
 function renderSpeak(panel, q) {
   panel.innerHTML = `
-    <div class="q-label">🎤 Nói to và rõ câu sau</div>
-    <div class="phrase ${q.askTier >= 4 ? 'long' : ''}" id="phrase">${esc(q.text)}</div>
+    <div class="q-label">${q.prompt ? '🗺️ Nói câu này bằng tiếng phổ thông' : q.tag === 'prov' ? '📜 Đọc to câu ca dao – tục ngữ' : '🎤 Nói to và rõ câu sau'}</div>
+    <div class="phrase ${q.askTier >= 4 ? 'long' : ''} ${q.prompt ? 'dia' : ''}" id="phrase">${esc(q.prompt || q.text)}</div>
     <div class="heard" id="heard">&nbsp;</div>
     <div class="fb" id="fb"></div>
     <div class="actions">
       <button class="btn big" id="mic">🎤 Bấm để nói</button>
-      <button class="btn ghost" id="hear">🔊 Nghe mẫu</button>
+      ${q.prompt ? '' : '<button class="btn ghost" id="hear">🔊 Nghe mẫu</button>'}
       <button class="btn ghost" id="skip">Bỏ qua</button>
     </div>`;
   const mic = $('mic');
   let listening = false;
 
-  $('hear').onclick = () => speakText(q.text);
+  if ($('hear')) $('hear').onclick = () => speakText(q.text);
   $('skip').onclick = () => resolve(false, q.text);
-  mic.onclick = () => {
+  mic.onclick = async () => {
     if (G.busy) return;
     if (listening) return G.rec?.stop();
     window.speechSynthesis?.cancel();
     listening = true;
+    const denied = await primeMic();
+    if (denied) {
+      listening = false;
+      $('fb').className = 'fb bad';
+      $('fb').textContent = denied;
+      return;
+    }
     mic.classList.add('rec');
     mic.textContent = '⏹ Nói xong';
     $('fb').textContent = '';
@@ -394,9 +478,9 @@ function renderSpeak(panel, q) {
 
 function renderBlank(panel, q) {
   panel.innerHTML = `
-    <div class="q-label">✍️ Chọn từ viết đúng chính tả</div>
-    <div class="sentence ${q.askTier >= 4 ? 'long' : ''}">${esc(q.before)}<span class="gap" id="gap">＿＿＿</span>${esc(q.after)}</div>
-    <div class="options">${q.options.map((o) => `<button class="opt" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+    <div class="q-label">${q.tag === 'dia' ? '🗺️ Chọn đáp án đúng' : q.tag === 'prov' ? '📜 Hoàn thành câu ca dao – tục ngữ' : '✍️ Chọn từ viết đúng chính tả'}</div>
+    <div class="sentence ${q.askTier >= 4 || q.before.length + q.after.length > 70 ? 'long' : ''}">${esc(q.before)}<span class="gap" id="gap">＿＿＿</span>${esc(q.after)}</div>
+    <div class="options">${q.options.map((o) => `<button class="opt ${o.length > 14 ? 'wide' : ''}" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
     <div class="fb" id="fb"></div>`;
   panel.querySelector('.options').onclick = (e) => {
     const b = e.target.closest('.opt');
@@ -418,7 +502,7 @@ function renderBlank(panel, q) {
 function renderFind(panel, q) {
   const n = q.wrongCount;
   panel.innerHTML = `
-    <div class="q-label">🔍 Bấm chọn ${n === 1 ? '1 từ' : `<strong>${n} từ</strong>`} viết sai chính tả, rồi bấm Kiểm tra</div>
+    <div class="q-label">${q.tag === 'prov' ? '📜 ' : '🔍 '}Bấm chọn ${n === 1 ? '1 từ' : `<strong>${n} từ</strong>`} viết sai chính tả, rồi bấm Kiểm tra</div>
     <div class="sentence find ${q.askTier >= 4 ? 'long' : ''}">${q.tokens
       .map((t, k) => `<button class="tok" data-k="${k}" aria-pressed="false">${esc(t.text)}</button>`)
       .join(' ')}</div>

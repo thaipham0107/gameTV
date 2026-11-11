@@ -268,3 +268,13 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
+
+/* ---------- Bổ sung: nội dung, vùng miền, ứng dụng nhúng ---------- */
+.card h3 { margin: 12px 0 8px; font-size: 15px; color: var(--muted); }
+.hint { margin: 10px 0 0; color: var(--muted); font-size: 14px; }
+.loading { text-align: center; font-size: 20px; font-weight: 700; margin-top: 30vh; }
+.warn-card { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--card)); }
+.warn-card p { margin: 6px 0; }
+a.btn { display: inline-block; text-decoration: none; }
+.phrase.dia { color: var(--accent); }
+.opt.wide { font-size: 17px; max-width: 100%; text-align: left; line-height: 1.35; }
