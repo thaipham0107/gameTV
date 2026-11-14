@@ -63,3 +63,7 @@ Thêm từ vựng, mẫu câu hoặc từ vùng miền mới: sửa các tệp t
 
 Workflow [.github/workflows/deploy.yml](.github/workflows/deploy.yml) tự build và deploy mỗi lần push lên `main`.
 Chỉ cần vào **Settings → Pages → Source: GitHub Actions** một lần.
+
+## Chế độ Thử thách (chạy vô tận)
+
+Từ trang chủ bấm "Vào thử thách": khủng long chạy mãi, mỗi chướng ngại mang một từ/câu cần nói trước khi nó chạm. Nói đúng thì khủng long nhảy qua, hết giờ thì game over. Câu dài dần, thời gian ngắn dần; điểm cao lưu trên máy (`src/runner.js`). Dùng cùng kho câu "nói" và lựa chọn Phổ thông/Vùng miền ở trang chủ.

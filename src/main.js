@@ -1,5 +1,6 @@
 import './style.css';
 import { LEVELS, MONSTERS, STAGE_SIZE, PROVINCES, buildQuiz, loadBank } from './data.js';
+import { startRunner, getRunBest } from './runner.js';
 import { markSeen, seenCount, resetSeen } from './history.js';
 import { hasSpeechRecognition, primeMic, listen, speakText, judge } from './speech.js';
 import { sfx, sfxState } from './audio.js';
@@ -82,6 +83,13 @@ function renderHome() {
     </header>
 
 
+    <section class="card runner-card">
+      <h2>🦖 Thử thách chạy vô tận</h2>
+      <p class="hint">Khủng long chạy mãi, nói đúng từ trước khi xương rồng tới để nhảy qua. Sai nhịp là game over! Câu càng về sau càng dài.</p>
+      <div class="actions"><button class="btn big" id="runner" ${hasSpeechRecognition ? '' : 'disabled'}>▶ Vào thử thách${getRunBest() ? ` · Kỷ lục ${getRunBest()}` : ''}</button></div>
+      ${hasSpeechRecognition ? '' : '<p class="note">Cần trình duyệt hỗ trợ nhận giọng nói (Chrome, Edge, Safari).</p>'}
+    </section>
+
     <section class="card">
       <h2>1. Nội dung</h2>
       <div class="chips" id="scopes">
@@ -141,6 +149,7 @@ function renderHome() {
     }
   });
 
+  app.querySelector('#runner').onclick = () => startRunner({ root: app, scope: settings.scope, province: settings.province, onExit: renderHome });
   app.querySelector('#scopes').onclick = (e) => {
     const sc = e.target.closest('[data-s]')?.dataset.s;
     if (!sc) return;
