@@ -4,6 +4,8 @@ import { startRunner, getRunBest } from './runner.js';
 import { markSeen, seenCount, resetSeen } from './history.js';
 import { hasSpeechRecognition, primeMic, listen, speakText, judge } from './speech.js';
 import { sfx, sfxState } from './audio.js';
+import { HEROES, COLORS, heroSvg } from './heroes.js';
+import { fxState, shake, burst, confetti, centerOf } from './fx.js';
 
 const PASS_RATIO = 0.7; // đạt khi đúng từ 70% trở lên
 const REVIEW_MS = 2600; // câu đúng: giữ kết quả trên màn hình trước khi qua câu mới
@@ -31,7 +33,10 @@ const settings = {
   province: saved.province || 'all',
   mode: hasSpeechRecognition ? saved.mode || 'both' : 'choose',
   sfx: saved.sfx !== false,
+  fx: saved.fx !== false,
+  hero: HEROES.some((h) => h.id === saved.hero?.id) ? saved.hero : null, // { id, color }
 };
+fxState.on = settings.fx;
 const best = saved.best || {}; // { [level]: { stars, acc } }
 sfxState.on = settings.sfx;
 function save() {
@@ -72,7 +77,71 @@ const SCOPE_HINT = {
   all: 'Trộn cả nội dung phổ thông và vùng miền.',
 };
 
+// ---------- Chọn nhân vật ----------
+
+function renderPicker(first = false) {
+  const cur = settings.hero || { id: HEROES[0].id, color: HEROES[0].color };
+  let g = HEROES.find((h) => h.id === cur.id).g;
+  let id = cur.id;
+  let color = cur.color;
+  const draw = () => {
+    const list = HEROES.filter((h) => h.g === g);
+    if (!list.some((h) => h.id === id)) {
+      id = list[0].id;
+      color = list[0].color;
+    }
+    app.innerHTML = `
+    <main class="home picker">
+      <header class="title">
+        <h1>${first ? 'Chọn nhân vật của bạn' : 'Đổi nhân vật'}</h1>
+        <p>Bạn là bạn nam hay bạn nữ?</p>
+      </header>
+      <div class="chips" id="gender">
+        <button class="chip ${g === 'm' ? 'on' : ''}" data-g="m">👦 Bạn nam</button>
+        <button class="chip ${g === 'f' ? 'on' : ''}" data-g="f">👧 Bạn nữ</button>
+      </div>
+      <div class="pick-big">${heroSvg(id, color)}</div>
+      <div class="pick-grid" id="heroes">
+        ${list.map((h) => `<button class="pick ${h.id === id ? 'on' : ''}" data-h="${h.id}"><span>${heroSvg(h.id, h.id === id ? color : h.color)}</span><small>${esc(h.name)}</small></button>`).join('')}
+      </div>
+      <div class="swatches" id="colors">
+        ${COLORS.map((c, i) => `<button class="swatch ${i === color ? 'on' : ''}" data-c="${i}" style="background:${c}" aria-label="Màu ${i + 1}"></button>`).join('')}
+      </div>
+      <div class="actions"><button class="btn big" id="pick-ok">Xong ✓</button></div>
+    </main>`;
+    app.querySelector('#gender').onclick = (e) => {
+      const v = e.target.closest('[data-g]')?.dataset.g;
+      if (v) {
+        g = v;
+        draw();
+      }
+    };
+    app.querySelector('#heroes').onclick = (e) => {
+      const v = e.target.closest('[data-h]')?.dataset.h;
+      if (v) {
+        id = v;
+        color = HEROES.find((h) => h.id === v).color;
+        draw();
+      }
+    };
+    app.querySelector('#colors').onclick = (e) => {
+      const v = e.target.closest('[data-c]')?.dataset.c;
+      if (v !== undefined) {
+        color = +v;
+        draw();
+      }
+    };
+    $('pick-ok').onclick = () => {
+      settings.hero = { id, color };
+      save();
+      renderHome();
+    };
+  };
+  draw();
+}
+
 function renderHome() {
+  if (!settings.hero) return renderPicker(true);
   const provinceChips = PROVINCES.map((p) => `<button class="chip ${settings.province === p.id ? 'on' : ''}" data-p="${p.id}">${esc(p.name)}</button>`).join('');
   app.innerHTML = `
   <main class="home">
@@ -81,6 +150,15 @@ function renderHome() {
       <h1>Đấu Quái Vật</h1>
       <p>Nói đúng, chọn đúng chính tả để đấm, đá hạ gục quái vật!</p>
     </header>
+
+    <section class="card hero-card">
+      <div class="hero-prev">${heroSvg(settings.hero.id, settings.hero.color)}</div>
+      <div class="hero-info">
+        <small>Nhân vật của bạn</small>
+        <strong>${esc(HEROES.find((h) => h.id === settings.hero.id).name)}</strong>
+        <button class="btn ghost" id="change-hero">🎭 Đổi nhân vật</button>
+      </div>
+    </section>
 
 
     <section class="card runner-card">
@@ -129,6 +207,7 @@ function renderHome() {
     </section>
 
     <footer class="foot">
+      <button class="link" id="fxbtn">${settings.fx ? '✨ Hiệu ứng: bật' : '✨ Hiệu ứng: tắt'}</button>
       <button class="link" id="sfx">${settings.sfx ? '🔊 Âm thanh: bật' : '🔇 Âm thanh: tắt'}</button>
       <span id="bankinfo">Đạt khi đúng từ ${PASS_RATIO * 100}% số câu</span>
       <button class="link" id="resetseen" hidden>Chơi lại các câu đã gặp</button>
@@ -174,6 +253,13 @@ function renderHome() {
   app.querySelector('.levels').onclick = (e) => {
     const b = e.target.closest('[data-l]');
     if (b && !b.disabled) startGame(+b.dataset.l);
+  };
+  app.querySelector('#change-hero').onclick = () => renderPicker();
+  app.querySelector('#fxbtn').onclick = () => {
+    settings.fx = !settings.fx;
+    fxState.on = settings.fx;
+    save();
+    renderHome();
   };
   app.querySelector('#sfx').onclick = () => {
     settings.sfx = !settings.sfx;
@@ -225,7 +311,7 @@ async function startGame(level) {
     </header>
     <div class="progress" aria-hidden="true"><span id="prog"></span>${Array.from({ length: Math.ceil(G.count / STAGE_SIZE) - 1 }, (_, k) => `<i style="left:${((k + 1) * STAGE_SIZE * 100) / G.count}%"></i>`).join('')}</div>
     <section class="arena" id="arena">
-      <div class="fighter hero" id="hero">🦸</div>
+      <div class="fighter hero" id="hero">${heroSvg(settings.hero.id, settings.hero.color)}</div>
       <div class="mbox" id="mbox">
         <div class="mhud">
           <div class="mname" id="mname"></div>
@@ -300,6 +386,10 @@ async function playerAttack() {
   await sleep(220);
   sfx.hit();
   replay($('monster'), 'hurt', 450);
+  const arena = $('arena');
+  const mc = centerOf($('monster'), arena);
+  shake(arena);
+  burst(arena, mc.x, mc.y, G.streak >= 3 ? { items: ['🔥', '💥', '✨'], n: 12, spread: 110 } : {});
   popText(G.streak >= 5 ? 'SIÊU ĐÒN!' : HIT_WORDS[Math.floor(Math.random() * HIT_WORDS.length)], kick ? 'kick' : 'punch');
   G.hp = Math.max(0, G.hp - HIT_DAMAGE);
   $('hp').style.width = `${G.hp}%`;
@@ -312,6 +402,7 @@ async function monsterAttack() {
   await sleep(220);
   sfx.miss();
   replay($('hero'), 'hurt', 450);
+  shake($('arena'));
   popText('ÁI!', 'ouch');
   await sleep(350);
 }
@@ -322,6 +413,7 @@ async function stageEnd() {
   if (G.hp <= DEFEAT_HP) {
     sfx.win();
     replay(monster, 'ko', 900);
+    confetti($('arena'), 34);
     $('banner').textContent = `Hạ gục ${name}!`;
   } else {
     $('banner').textContent = `${name} chạy mất…`;
