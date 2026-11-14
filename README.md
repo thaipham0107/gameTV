@@ -67,3 +67,8 @@ Chỉ cần vào **Settings → Pages → Source: GitHub Actions** một lần.
 ## Chế độ Thử thách (chạy vô tận)
 
 Từ trang chủ bấm "Vào thử thách": khủng long chạy mãi, mỗi chướng ngại mang một từ/câu cần nói trước khi nó chạm. Nói đúng thì khủng long nhảy qua, hết giờ thì game over. Câu dài dần, thời gian ngắn dần; điểm cao lưu trên máy (`src/runner.js`). Dùng cùng kho câu "nói" và lựa chọn Phổ thông/Vùng miền ở trang chủ.
+
+## Câu líu lưỡi & nhân vật
+
+- Câu líu lưỡi viết tay ở `scripts/bank/twisters.mjs` (mỗi dòng một câu). Thêm câu mới rồi chạy `npm run build:bank`; mỗi câu sinh ra dạng nói, điền từ và tìm lỗi (nhãn 🌀).
+- Nhân vật vẽ bằng SVG ở `src/heroes.js` (8 nhân vật, 6 màu); hiệu ứng đòn đánh ở `src/fx.js`.

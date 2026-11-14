@@ -495,7 +495,7 @@ async function advance() {
 
 function renderSpeak(panel, q) {
   panel.innerHTML = `
-    <div class="q-label">${q.prompt ? '🗺️ Nói câu này bằng tiếng phổ thông' : q.tag === 'prov' ? '📜 Đọc to câu ca dao – tục ngữ' : '🎤 Nói to và rõ câu sau'}</div>
+    <div class="q-label">${q.prompt ? '🗺️ Nói câu này bằng tiếng phổ thông' : q.tag === 'prov' ? '📜 Đọc to câu ca dao – tục ngữ' : q.tag === 'tw' ? '🌀 Líu lưỡi! Đọc thật rõ chữ' : '🎤 Nói to và rõ câu sau'}</div>
     <div class="phrase ${q.askTier >= 4 ? 'long' : ''} ${q.prompt ? 'dia' : ''}" id="phrase">${esc(q.prompt || q.text)}</div>
     <div class="heard" id="heard">&nbsp;</div>
     <div class="fb" id="fb"></div>
@@ -561,7 +561,7 @@ function renderSpeak(panel, q) {
 
 function renderBlank(panel, q) {
   panel.innerHTML = `
-    <div class="q-label">${q.tag === 'dia' ? '🗺️ Chọn đáp án đúng' : q.tag === 'prov' ? '📜 Hoàn thành câu ca dao – tục ngữ' : '✍️ Chọn từ viết đúng chính tả'}</div>
+    <div class="q-label">${q.tag === 'dia' ? '🗺️ Chọn đáp án đúng' : q.tag === 'prov' ? '📜 Hoàn thành câu ca dao – tục ngữ' : q.tag === 'tw' ? '🌀 Líu lưỡi! Chọn từ đúng' : '✍️ Chọn từ viết đúng chính tả'}</div>
     <div class="sentence ${q.askTier >= 4 || q.before.length + q.after.length > 70 ? 'long' : ''}">${esc(q.before)}<span class="gap" id="gap">＿＿＿</span>${esc(q.after)}</div>
     <div class="options">${q.options.map((o) => `<button class="opt ${o.length > 14 ? 'wide' : ''}" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
     <div class="fb" id="fb"></div>`;
@@ -585,7 +585,7 @@ function renderBlank(panel, q) {
 function renderFind(panel, q) {
   const n = q.wrongCount;
   panel.innerHTML = `
-    <div class="q-label">${q.tag === 'prov' ? '📜 ' : '🔍 '}Bấm chọn ${n === 1 ? '1 từ' : `<strong>${n} từ</strong>`} viết sai chính tả, rồi bấm Kiểm tra</div>
+    <div class="q-label">${q.tag === 'prov' ? '📜 ' : q.tag === 'tw' ? '🌀 ' : '🔍 '}Bấm chọn ${n === 1 ? '1 từ' : `<strong>${n} từ</strong>`} viết sai chính tả, rồi bấm Kiểm tra</div>
     <div class="sentence find ${q.askTier >= 4 ? 'long' : ''}">${q.tokens
       .map((t, k) => `<button class="tok" data-k="${k}" aria-pressed="false">${esc(t.text)}</button>`)
       .join(' ')}</div>

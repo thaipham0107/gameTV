@@ -8,6 +8,7 @@ import { levelsForTier } from '../src/levels.js';
 import { canon, decoysOf, isConfusable, capitalize, isCapitalized, mulberry32, splitPunct } from './bank/viet.mjs';
 import * as V from './bank/vocab.mjs';
 import { PROVERBS } from './bank/proverbs.mjs';
+import { TWISTERS } from './bank/twisters.mjs';
 import { PROVINCES, WORDS as DIA_WORDS, PHRASES as DIA_PHRASES } from './bank/dialect.mjs';
 import { SPEAK as L_SPEAK, BLANK as L_BLANK } from './bank/legacy.mjs';
 import { FIND as L_FIND } from './bank/find-legacy.mjs';
@@ -58,6 +59,7 @@ const wl = new Set();
 const addText = (t) => t.split(SPLIT).filter(Boolean).forEach((s) => wl.add(canon(s)));
 V.COMMON_SYLLABLES.forEach((s) => wl.add(canon(s)));
 [V.MALE, V.FEMALE, V.SUBJECTS_FIXED, V.TIMES, V.NATURE_PHRASES, V.NATURE_SENTENCES, V.CLOSERS, PROVERBS].forEach((a) => a.forEach(addText));
+addText(TWISTERS);
 V.VERB_ROWS.forEach((r) => [r.verb, ...r.objs, ...r.places].forEach(addText));
 V.NP_GROUPS.forEach(([c, ns, as]) => [c, ...ns, ...as].forEach(addText));
 DIA_WORDS.forEach((w) => addText(w[0]));
@@ -290,6 +292,24 @@ for (const list of Object.values(BLANK6)) for (const x of list) push('b', 6, 'p'
     const f = findOf(toks, k);
     if (f) push('f', Math.max(tier, k === 1 ? 2 : 4), 'p', g, f, extra);
   });
+}
+
+// ---------- Câu líu lưỡi ----------
+{
+  const lines = TWISTERS.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  for (const text of lines) {
+    const n = countSyl(text);
+    const tier = n <= 5 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 28 ? 5 : 6;
+    const extra = { c: 'tw' };
+    const g = ++gid;
+    push('s', tier, 'p', g, text, extra);
+    const toks = analyze(text, true);
+    const b = blankOf(toks, 3);
+    if (b) push('b', tier, 'p', g, b, extra);
+    const k = tier >= 4 ? 2 : 1;
+    const f = findOf(toks, k);
+    if (f) push('f', Math.max(tier, k === 1 ? 2 : 4), 'p', g, f, extra);
+  }
 }
 
 // ---------- Tiếng vùng miền ----------
