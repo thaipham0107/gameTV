@@ -4,8 +4,9 @@ import { startRunner, getRunBest } from './runner.js';
 import { markSeen, seenCount, resetSeen } from './history.js';
 import { hasSpeechRecognition, primeMic, listen, speakText, judge } from './speech.js';
 import { sfx, sfxState } from './audio.js';
-import { HEROES, COLORS, heroSvg } from './heroes.js';
+import { HEROES, COLORS, HAND, heroSvg } from './heroes.js';
 import { fxState, shake, burst, confetti, centerOf } from './fx.js';
+import { shoot, ATTACK_WORD, IMPACT } from './attacks.js';
 
 const PASS_RATIO = 0.7; // đạt khi đúng từ 70% trở lên
 const REVIEW_MS = 2600; // câu đúng: giữ kết quả trên màn hình trước khi qua câu mới
@@ -379,18 +380,20 @@ function updateHud() {
 const HIT_WORDS = ['BỐP!', 'BỤP!', 'CHÁT!', 'BÙM!'];
 
 async function playerAttack() {
-  const kick = G.attackKick;
-  G.attackKick = !kick;
   const hero = $('hero');
-  replay(hero, kick ? 'kick' : 'punch', 500);
-  await sleep(220);
-  sfx.hit();
-  replay($('monster'), 'hurt', 450);
   const arena = $('arena');
-  const mc = centerOf($('monster'), arena);
+  const type = HEROES.find((h) => h.id === settings.hero.id).attack;
+  replay(hero, 'cast', 420);
+  const hr = hero.getBoundingClientRect();
+  const ar = arena.getBoundingClientRect();
+  const from = { x: hr.left - ar.left + hr.width * HAND.x, y: hr.top - ar.top + hr.height * HAND.y };
+  const to = centerOf($('monster'), arena);
+  await shoot(arena, type, from, to);
+  sfx.hit();
+  replay($('monster'), type === 'ice' ? 'frozen' : 'hurt', 450);
   shake(arena);
-  burst(arena, mc.x, mc.y, G.streak >= 3 ? { items: ['🔥', '💥', '✨'], n: 12, spread: 110 } : {});
-  popText(G.streak >= 5 ? 'SIÊU ĐÒN!' : HIT_WORDS[Math.floor(Math.random() * HIT_WORDS.length)], kick ? 'kick' : 'punch');
+  burst(arena, to.x, to.y, G.streak >= 3 ? { items: ['🔥', ...IMPACT[type]], n: 13, spread: 115 } : { items: IMPACT[type] });
+  popText(G.streak >= 5 ? 'SIÊU ĐÒN!' : ATTACK_WORD[type], 'punch');
   G.hp = Math.max(0, G.hp - HIT_DAMAGE);
   $('hp').style.width = `${G.hp}%`;
   G.stageHits++;

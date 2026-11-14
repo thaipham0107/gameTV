@@ -360,3 +360,12 @@ a.btn { display: inline-block; text-decoration: none; }
   from { opacity: 1; transform: translate(0, 0) rotate(0); }
   to { opacity: 0; transform: translate(var(--dx), 260px) rotate(var(--r)); }
 }
+
+.hero.cast { animation: cast 0.42s ease-out; }
+@keyframes cast {
+  0% { transform: translateX(0) scale(1); }
+  25% { transform: translateX(-10px) scale(0.96, 1.04); }
+  55% { transform: translateX(8px) scale(1.06, 0.96); }
+  100% { transform: translateX(0) scale(1); }
+}
+.monster.frozen { animation: shake 0.45s; filter: sepia(1) hue-rotate(160deg) saturate(4) brightness(1.15); }
