@@ -9,6 +9,8 @@ import { canon, decoysOf, isConfusable, capitalize, isCapitalized, mulberry32, s
 import * as V from './bank/vocab.mjs';
 import { PROVERBS } from './bank/proverbs.mjs';
 import { TWISTERS } from './bank/twisters.mjs';
+import { TWISTERS_MORE } from './bank/twisters-more.mjs';
+import { TWISTERS_USER } from './bank/twisters-user.mjs';
 import { PROVINCES, WORDS as DIA_WORDS, PHRASES as DIA_PHRASES } from './bank/dialect.mjs';
 import { SPEAK as L_SPEAK, BLANK as L_BLANK } from './bank/legacy.mjs';
 import { FIND as L_FIND } from './bank/find-legacy.mjs';
@@ -19,7 +21,8 @@ const DICT_PATH = path.join(root, 'data', 'viet74k.txt');
 const DICT_URL = 'https://raw.githubusercontent.com/duyet/vietnamese-wordlist/master/Viet74K.txt';
 
 // Số lượng cần sinh (chỉnh để ra tổng ≥ 10.000 câu hỏi)
-const TARGET = { words: 1250, t2: 820, t3: 900, t4: 650, t5: 420, t6: 300 };
+// Không còn câu đơn giản (từ ghép 2 tiếng, cụm 3–5 tiếng): độ khó bắt đầu từ 3.
+const TARGET = { t3: 1500, t4: 1300, t5: 900, t6: 650 };
 const SEED = 20261111;
 const rng = mulberry32(SEED);
 const rand = (n) => Math.floor(rng() * n);
@@ -59,7 +62,7 @@ const wl = new Set();
 const addText = (t) => t.split(SPLIT).filter(Boolean).forEach((s) => wl.add(canon(s)));
 V.COMMON_SYLLABLES.forEach((s) => wl.add(canon(s)));
 [V.MALE, V.FEMALE, V.SUBJECTS_FIXED, V.TIMES, V.NATURE_PHRASES, V.NATURE_SENTENCES, V.CLOSERS, PROVERBS].forEach((a) => a.forEach(addText));
-addText(TWISTERS);
+[TWISTERS, TWISTERS_MORE, TWISTERS_USER].forEach(addText);
 V.VERB_ROWS.forEach((r) => [r.verb, ...r.objs, ...r.places].forEach(addText));
 V.NP_GROUPS.forEach(([c, ns, as]) => [c, ...ns, ...as].forEach(addText));
 DIA_WORDS.forEach((w) => addText(w[0]));
@@ -166,29 +169,6 @@ function addBase(text, tier, { relaxed = false, scope = 'p', extra = {}, minConf
   return n;
 }
 
-// ---------- Tầng 1: từ ghép trong từ điển ----------
-{
-  let made = 0;
-  for (const w of shuffle(twoSyl)) {
-    if (made >= TARGET.words) break;
-    const [a, b] = w.split(' ');
-    if (a === b || a.length > 6 || b.length > 6) continue;
-    if (!wl.has(a) || !wl.has(b) || blocked(w)) continue;
-    const byPos = [0, 1].map((pos) => {
-      const syl = pos ? b : a;
-      return decoysOf(syl).filter((d) => !words.has(pos ? `${a} ${d}` : `${d} ${b}`));
-    });
-    const pos = byPos[0].length >= byPos[1].length ? 0 : 1;
-    if (!byPos[pos].length) continue;
-    const opts = [pos ? b : a, ...shuffle(byPos[pos]).slice(0, 2)];
-    const text = pos ? `${a} [${opts.join('|')}]` : `[${opts.join('|')}] ${b}`;
-    const g = ++gid;
-    push('b', 1, 'p', g, text);
-    push('s', 1, 'p', g, w);
-    made++;
-  }
-}
-
 // ---------- Ghép câu ----------
 const SUBJECTS = [
   ...V.MALE.flatMap((n) => V.SUBJECTS_MALE(n)),
@@ -242,9 +222,9 @@ function genTier6() {
   return `${pick(V.NATURE_SENTENCES)} ${sent(`${pick(SUBJECTS)} ${full(e1)} rồi ${short(e2)}`)} ${pick(V.CLOSERS)}`;
 }
 
-const SYL_RANGE = { 2: [3, 5], 3: [4, 9], 4: [10, 19], 5: [18, 34], 6: [28, 60] };
+const SYL_RANGE = { 2: [3, 5], 3: [7, 11], 4: [10, 19], 5: [18, 34], 6: [28, 60] };
 const GEN = { 2: genTier2, 3: genTier3, 4: genTier4, 5: genTier5, 6: genTier6 };
-for (const tier of [2, 3, 4, 5, 6]) {
+for (const tier of [3, 4, 5, 6]) {
   let bases = 0;
   let guard = 0;
   while (bases < TARGET[`t${tier}`] && guard++ < 400000) {
@@ -296,7 +276,7 @@ for (const list of Object.values(BLANK6)) for (const x of list) push('b', 6, 'p'
 
 // ---------- Câu líu lưỡi ----------
 {
-  const lines = TWISTERS.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = [...new Set([TWISTERS, TWISTERS_MORE, TWISTERS_USER].flatMap((t) => t.split(/\r?\n/)))].map((l) => l.trim()).filter(Boolean);
   for (const text of lines) {
     const n = countSyl(text);
     const tier = n <= 5 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 28 ? 5 : 6;
@@ -351,6 +331,15 @@ for (const list of Object.values(BLANK6)) for (const x of list) push('b', 6, 'p'
     const wrong = shuffle(DIA_PHRASES.filter((q) => q[1] !== std).map((q) => q[1])).slice(0, 2);
     push('b', tier, 'v', g, `“${dia}” nghĩa là: [${std}|${wrong.join('|')}]`, ex, true);
   }
+}
+
+// ---------- Loại câu đơn giản ----------
+// Tiếng phổ thông: bỏ độ khó 1–2 và câu dưới 7 tiếng; vùng miền (từ vựng) giữ nguyên.
+const plain = (x) => x.replace(/\[([^|\]]+)[^\]]*\]/g, '$1').replace(/\{[^|}]*\|([^}]*)\}/g, '$1');
+const MIN_SYL = 7;
+for (let i = items.length - 1; i >= 0; i--) {
+  const it = items[i];
+  if (it.s === 'p' && (it.t < 3 || countSyl(plain(it.x)) < MIN_SYL)) items.splice(i, 1);
 }
 
 // ---------- Kiểm tra và ghi ----------

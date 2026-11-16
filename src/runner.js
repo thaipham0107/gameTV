@@ -84,13 +84,11 @@ function drawCactus(ctx, ob, color) {
 // ----- Chọn câu theo độ khó tăng dần -----
 function tierFor(cleared) {
   let t;
-  if (cleared < 4) t = 1;
-  else if (cleared < 9) t = 2;
-  else if (cleared < 15) t = 3;
-  else if (cleared < 22) t = 4;
-  else if (cleared < 30) t = 5;
+  if (cleared < 5) t = 3;
+  else if (cleared < 12) t = 4;
+  else if (cleared < 22) t = 5;
   else t = Math.random() < 0.5 ? 5 : 6;
-  if (t > 1 && Math.random() < 0.2) t--; // thỉnh thoảng nhẹ tay một chút
+  if (t > 3 && Math.random() < 0.2) t--; // thỉnh thoảng nhẹ tay một chút
   return t;
 }
 
