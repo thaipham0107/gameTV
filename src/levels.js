@@ -1,11 +1,11 @@
 // Mỗi cấp nhiều hơn cấp trước 10 câu (cấp 1 = 20 câu); câu càng về sau càng khó và dài.
 // Mở khoá: đạt cấp n thì mở cấp n+1; cấp cuối cần đúng 100% cấp liền trước (unlock: 'perfect').
 export const LEVELS = [
-  { name: 'Cấp 1 · Tập nói', icon: '🌱', desc: 'Câu ngắn → câu vừa', ramp: [3, 4], count: 20 },
-  { name: 'Cấp 2 · Chăm chỉ', icon: '🌿', desc: 'Câu vừa → câu dài', ramp: [3, 5], count: 30 },
-  { name: 'Cấp 3 · Giỏi giang', icon: '🌳', desc: 'Câu dài, nhiều âm dễ lẫn', ramp: [4, 5], count: 40 },
-  { name: 'Cấp 4 · Siêu đẳng', icon: '🔥', desc: 'Câu dài → đoạn văn', ramp: [4, 6], count: 50 },
-  { name: 'Cấp 5 · Huyền thoại', icon: '👑', desc: 'Đoạn văn dài, líu lưỡi', ramp: [5, 6], count: 60 },
+  { name: 'Cấp 1 · Tập nói', icon: '🌱', desc: 'Xoắn lưỡi ngắn → vừa', ramp: [3, 4], count: 20 },
+  { name: 'Cấp 2 · Chăm chỉ', icon: '🌿', desc: 'Xoắn lưỡi vừa → dài', ramp: [3, 5], count: 30 },
+  { name: 'Cấp 3 · Giỏi giang', icon: '🌳', desc: 'Xoắn lưỡi dài, âm dày đặc', ramp: [4, 5], count: 40 },
+  { name: 'Cấp 4 · Siêu đẳng', icon: '🔥', desc: 'Chuỗi xoắn lưỡi nhiều vế', ramp: [4, 6], count: 50 },
+  { name: 'Cấp 5 · Huyền thoại', icon: '👑', desc: 'Chuỗi xoắn lưỡi dài nhất', ramp: [5, 6], count: 60 },
   { name: 'Cấp 6 · Thần thoại', icon: '🐉', desc: 'Toàn đoạn văn dài, nhiều lỗi', ramp: [5, 6], count: 70, unlock: 'perfect' },
 ];
 

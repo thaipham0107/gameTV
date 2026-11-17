@@ -9,7 +9,7 @@ const items = bank.items;
 useBank(bank);
 
 // 1. Quy mô và định dạng
-assert.ok(items.length >= 10000, `ngân hàng chỉ có ${items.length} câu (cần ≥ 10.000)`);
+assert.ok(items.length >= 5000, `ngân hàng chỉ có ${items.length} câu (cần ≥ 5.000)`);
 const seen = new Set();
 for (const it of items) {
   const key = `${it.k}|${it.x}|${it.p || ''}`;

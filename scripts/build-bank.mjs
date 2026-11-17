@@ -5,15 +5,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { levelsForTier } from '../src/levels.js';
-import { canon, decoysOf, isConfusable, capitalize, isCapitalized, mulberry32, splitPunct } from './bank/viet.mjs';
+import { canon, splitInitial, decoysOf, isConfusable, capitalize, isCapitalized, mulberry32, splitPunct } from './bank/viet.mjs';
 import * as V from './bank/vocab.mjs';
 import { PROVERBS } from './bank/proverbs.mjs';
 import { TWISTERS } from './bank/twisters.mjs';
 import { TWISTERS_MORE } from './bank/twisters-more.mjs';
 import { TWISTERS_USER } from './bank/twisters-user.mjs';
 import { PROVINCES, WORDS as DIA_WORDS, PHRASES as DIA_PHRASES } from './bank/dialect.mjs';
-import { SPEAK as L_SPEAK, BLANK as L_BLANK } from './bank/legacy.mjs';
-import { FIND as L_FIND } from './bank/find-legacy.mjs';
 import { SPEAK6, BLANK6 } from './bank/tier6.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -22,7 +20,7 @@ const DICT_URL = 'https://raw.githubusercontent.com/duyet/vietnamese-wordlist/ma
 
 // Số lượng cần sinh (chỉnh để ra tổng ≥ 10.000 câu hỏi)
 // Không còn câu đơn giản (từ ghép 2 tiếng, cụm 3–5 tiếng): độ khó bắt đầu từ 3.
-const TARGET = { t3: 1500, t4: 1300, t5: 900, t6: 650 };
+const TARGET = {};
 const SEED = 20261111;
 const rng = mulberry32(SEED);
 const rand = (n) => Math.floor(rng() * n);
@@ -169,79 +167,61 @@ function addBase(text, tier, { relaxed = false, scope = 'p', extra = {}, minConf
   return n;
 }
 
-// ---------- Ghép câu ----------
-const SUBJECTS = [
-  ...V.MALE.flatMap((n) => V.SUBJECTS_MALE(n)),
-  ...V.FEMALE.flatMap((n) => V.SUBJECTS_FEMALE(n)),
-  ...V.SUBJECTS_FIXED,
-  ...V.SUBJECTS_FIXED,
-];
-const isBare = (s) => !s.includes(' ');
-const mid = (s) => (isBare(s) ? s : s[0].toLowerCase() + s.slice(1)); // sau dấu phẩy / "và": viết thường danh xưng
-const event = () => {
-  const row = pick(V.VERB_ROWS);
-  return { v: row.verb, o: pick(row.objs), p: pick(row.places) };
+// ---------- Câu xoắn lưỡi tự sinh (lặp phụ âm đầu) ----------
+const GROUPS = [new Set(['l', 'n']), new Set(['s', 'x']), new Set(['ch', 'tr']), new Set(['r', 'd', 'gi'])];
+const onsetOf = (syl) => splitInitial(canon(syl))[0];
+const inG = (G, w) => w.split(' ').every((s) => G.has(onsetOf(s)));
+const density = (G, text) => {
+  const sy = text.split(/\s+/).map((s) => s.replace(/[.,;:!?]/g, '')).filter(Boolean);
+  return sy.filter((s) => G.has(onsetOf(s))).length / sy.length;
 };
-const full = (e) => `${e.v} ${e.o} ${e.p}`;
-const short = (e) => `${e.v} ${e.o}`;
-const sent = (s) => `${s}.`;
-
-function genTier2() {
-  if (rng() < 0.12) return pick(V.NATURE_PHRASES);
-  const [cls, nouns, adjs] = pick(V.NP_GROUPS);
-  return `${cls} ${pick(nouns)} ${pick(adjs)}`;
+const twistPools = GROUPS.map((G) => {
+  const names = [...V.MALE, ...V.FEMALE].flatMap((n) => [n, ...[`Bé ${n}`, `Anh ${n}`, `Chú ${n}`, `Bác ${n}`, `Cô ${n}`, `Chị ${n}`, `Dì ${n}`, `Cậu ${n}`]]).filter((n) => inG(G, n));
+  const rows = V.VERB_ROWS.filter((r) => inG(G, r.verb)).map((r) => ({ v: r.verb, os: r.objs.filter((o) => inG(G, o)), ps: r.places.filter((p) => inG(G, p)) })).filter((r) => r.os.length);
+  const adv = twoSyl.filter((w) => inG(G, w) && w.split(' ')[0] !== w.split(' ')[1] && onsetOf(w.split(' ')[0]) === onsetOf(w.split(' ')[1]) && !/ruột|lưỡi lê/.test(w) && !blocked(w) && w.split(' ').every((s) => wl.has(s)) && !NAMES.has(w.split(' ')[0]));
+  return { names, rows, adv };
+});
+function genTwister(G, P, parts) {
+  const one = () => {
+    const r = pick(P.rows);
+    const bits = [pick(P.names), r.v, pick(r.os)];
+    if (r.ps.length && rng() < 0.6) bits.push(pick(r.ps));
+    else if (rng() < 0.8) bits.push(pick(P.adv));
+    return bits.join(' ');
+  };
+  const out = [];
+  const used = new Set();
+  for (let g = 0; out.length < parts && g < 30; g++) {
+    const c = one();
+    const key = c.split(' ').slice(-3).join(' ');
+    if (used.has(key)) continue;
+    used.add(key);
+    out.push(c);
+  }
+  if (out.length < parts) return '';
+  return out.join(', ') + '.';
 }
-function genTier3() {
-  if (rng() < 0.2) return pick(V.NATURE_SENTENCES);
-  const e = event();
-  return sent(`${pick(SUBJECTS)} ${rng() < 0.5 ? short(e) : full(e)}`);
-}
-function genTier4() {
-  const e1 = event();
-  const e2 = event();
-  const r = rng();
-  if (r < 0.45) return sent(`${pick(V.TIMES)}, ${mid(pick(SUBJECTS))} ${full(e1)} rồi ${short(e2)}`);
-  if (r < 0.8) return sent(`${pick(V.TIMES)}, ${mid(pick(SUBJECTS))} ${full(e1)} và ${mid(pick(SUBJECTS))} ${full(e2)}`);
-  return `${pick(V.NATURE_SENTENCES)} ${sent(`${pick(SUBJECTS)} ${full(e1)}`)}`;
-}
-function genTier5() {
-  const e1 = event();
-  const e2 = event();
-  const e3 = event();
-  const r = rng();
-  if (r < 0.5) return `${sent(`${pick(V.TIMES)}, ${mid(pick(SUBJECTS))} ${full(e1)}`)} ${sent(`${pick(SUBJECTS)} ${full(e2)} rồi ${short(e3)}`)}`;
-  if (r < 0.8) return `${pick(V.NATURE_SENTENCES)} ${sent(`${pick(SUBJECTS)} ${full(e1)} rồi ${short(e2)}`)}`;
-  return `${sent(`${pick(V.TIMES)}, ${mid(pick(SUBJECTS))} ${full(e1)} rồi ${short(e2)}`)} ${pick(V.CLOSERS)}`;
-}
-function genTier6() {
-  const e1 = event();
-  const e2 = event();
-  const e3 = event();
-  const r = rng();
-  if (r < 0.5) return `${sent(`${pick(V.TIMES)}, ${mid(pick(SUBJECTS))} ${full(e1)}`)} ${sent(`${pick(SUBJECTS)} ${full(e2)} rồi ${short(e3)}`)} ${pick(V.CLOSERS)}`;
-  return `${pick(V.NATURE_SENTENCES)} ${sent(`${pick(SUBJECTS)} ${full(e1)} rồi ${short(e2)}`)} ${pick(V.CLOSERS)}`;
-}
-
-const SYL_RANGE = { 2: [3, 5], 3: [7, 11], 4: [10, 19], 5: [18, 34], 6: [28, 60] };
-const GEN = { 2: genTier2, 3: genTier3, 4: genTier4, 5: genTier5, 6: genTier6 };
-for (const tier of [3, 4, 5, 6]) {
-  let bases = 0;
-  let guard = 0;
-  while (bases < TARGET[`t${tier}`] && guard++ < 400000) {
-    const text = GEN[tier]();
-    const n = countSyl(text);
-    if (n < SYL_RANGE[tier][0] || n > SYL_RANGE[tier][1]) continue;
-    if (addBase(text, tier)) bases++;
+const TWIST_GEN = [];
+{
+  const seen = new Set();
+  for (let gi = 0; gi < GROUPS.length; gi++) {
+    const P = twistPools[gi];
+    if (!P.rows.length || !P.names.length || !P.adv.length) continue;
+    for (const [parts, want] of [[1, 50], [2, 110], [3, 110], [4, 100], [5, 80]]) {
+      let n = 0;
+      for (let k = 0; k < 40000 && n < want; k++) {
+        const t = genTwister(GROUPS[gi], P, parts);
+        const key = canon(t);
+        if (seen.has(key) || countSyl(t) < 6) continue;
+        seen.add(key);
+        TWIST_GEN.push(t);
+        n++;
+      }
+    }
   }
 }
 
 // ---------- Câu hỏi viết tay ban đầu ----------
-for (const [, tiers] of Object.entries(L_SPEAK))
-  for (const [tier, list] of Object.entries(tiers)) for (const x of list) push('s', +tier, 'p', ++gid, x);
-for (const [, tiers] of Object.entries(L_BLANK))
-  for (const [tier, list] of Object.entries(tiers)) for (const x of list) push('b', +tier, 'p', ++gid, x);
-for (const [, tiers] of Object.entries(L_FIND))
-  for (const [tier, list] of Object.entries(tiers)) for (const x of list) push('f', +tier, 'p', ++gid, x);
 for (const list of Object.values(SPEAK6)) for (const x of list) push('s', 6, 'p', ++gid, x);
 for (const list of Object.values(BLANK6)) for (const x of list) push('b', 6, 'p', ++gid, x);
 
@@ -276,10 +256,14 @@ for (const list of Object.values(BLANK6)) for (const x of list) push('b', 6, 'p'
 
 // ---------- Câu líu lưỡi ----------
 {
-  const lines = [...new Set([TWISTERS, TWISTERS_MORE, TWISTERS_USER].flatMap((t) => t.split(/\r?\n/)))].map((l) => l.trim()).filter(Boolean);
+  const split = (t) => t.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  // câu người dùng cung cấp: chỉ giữ câu lặp âm đầu dày (≥ 50% tiếng thuộc một nhóm L/N, S/X, CH/TR, R/D/GI)
+  const dense = split(TWISTERS_USER).filter((t) => GROUPS.some((G) => density(G, t) >= 0.5));
+  const lines = [...new Set([...split(TWISTERS), ...split(TWISTERS_MORE), ...dense, ...TWIST_GEN])];
+  console.log('Câu líu lưỡi:', { tayViet: split(TWISTERS).length + split(TWISTERS_MORE).length, nguoiDung: dense.length + '/' + split(TWISTERS_USER).length, tuSinh: TWIST_GEN.length });
   for (const text of lines) {
     const n = countSyl(text);
-    const tier = n <= 5 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : n <= 28 ? 5 : 6;
+    const tier = n <= 8 ? 3 : n <= 13 ? 4 : n <= 22 ? 5 : 6;
     const extra = { c: 'tw' };
     const g = ++gid;
     push('s', tier, 'p', g, text, extra);

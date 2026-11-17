@@ -11,7 +11,7 @@ nói đúng hoặc chọn đúng từ thì nhân vật đấm/đá quái một c
   - ✍️ **Điền từ**: chọn từ viết đúng chính tả.
   - 🔍 **Tìm lỗi**: bấm chọn **tất cả** từ viết sai trong câu (câu càng khó càng nhiều từ sai), rồi bấm Kiểm tra.
 - **6 cấp độ**, số câu tăng dần: Cấp 1 = 20 câu, mỗi cấp sau thêm 10 câu (Cấp 6 = 70 câu). Câu càng về sau càng khó và dài:
-  câu vừa → câu dài → đoạn 2–3 câu (không còn từ đơn / cụm ngắn).
+  câu xoắn lưỡi ngắn → dài → chuỗi nhiều vế (không còn câu thường đơn giản).
 - **Mở khoá**: đạt cấp nào thì mở cấp kế tiếp. **Cấp 6** chỉ mở khi đúng **100% ở Cấp 5**.
 - Câu chọn chính tả đúng vẫn hiện lại câu chuẩn ~2,5 giây (hoặc bấm "Tiếp") để kịp nhìn kết quả.
 - **Nội dung**: 📚 Phổ thông (phát âm l/n, s/x, ch/tr, r/d/gi, hỏi/ngã, chính tả, ca dao – tục ngữ) · 🗺️ Vùng miền
